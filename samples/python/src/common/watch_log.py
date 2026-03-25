@@ -21,6 +21,7 @@ between the servers in real time.
 """
 
 import logging
+import os
 from typing import Any
 
 from a2a.server.agent_execution.context import RequestContext
@@ -38,6 +39,7 @@ def create_file_handler() -> logging.FileHandler:
   Returns:
       A logging.FileHandler instance configured for 'watch.log'.
   """
+  os.makedirs(".logs", exist_ok=True)
   file_handler = logging.FileHandler(".logs/watch.log")
   file_handler.setLevel(logging.INFO)
   file_handler.setFormatter(logging.Formatter("%(message)s"))

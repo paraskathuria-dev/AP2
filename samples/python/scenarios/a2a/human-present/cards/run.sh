@@ -45,28 +45,43 @@ if [ -z "${GOOGLE_API_KEY}" ] && [ "${USE_VERTEXAI}" != "true" ]; then
   exit 1
 fi
 
-# Set up and activate a virtual environment.
-echo "Setting up the Python virtual environment..."
+# On Render, the build command already ran `uv sync` and `uv pip install -e .`,
+# so we skip venv creation and package installation to avoid using the system Python.
+if [ "${RENDER}" = "true" ]; then
+  echo "Render environment detected. Skipping venv setup (already done during build)."
+else
+  # Set up and activate a virtual environment.
+  echo "Setting up the Python virtual environment..."
 
-if [ ! -d ".venv" ]; then
-  uv venv
+  if [ ! -d ".venv" ]; then
+    uv venv
+  fi
+
+  # Detect the correct activation script path based on the operating system
+  case "$OSTYPE" in
+    msys* | cygwin*)
+      # Windows (Git Bash, MSYS2, or Cygwin)
+      source .venv/Scripts/activate
+      ;;
+    *)
+      # Unix/Linux/macOS
+      source .venv/bin/activate
+      ;;
+  esac
+  echo "Virtual environment activated."
+
+  echo "Installing project in editable mode..."
+  uv pip install -e .
+
+  # Explicitly sync to ensures the virtual environment is up to date.
+  echo "Syncing virtual environment with uv sync..."
+  if uv sync --package ap2-samples; then
+    echo "Virtual environment synced successfully."
+  else
+    echo "Error: uv sync failed. Aborting deployment."
+    exit 1
+  fi
 fi
-
-# Detect the correct activation script path based on the operating system
-case "$OSTYPE" in
-  msys* | cygwin*)
-    # Windows (Git Bash, MSYS2, or Cygwin)
-    source .venv/Scripts/activate
-    ;;
-  *)
-    # Unix/Linux/macOS
-    source .venv/bin/activate
-    ;;
-esac
-echo "Virtual environment activated."
-
-echo "Installing project in editable mode..."
-uv pip install -e .
 
 # Create a directory for log files.
 mkdir -p "$LOG_DIR"
@@ -88,15 +103,6 @@ cleanup() {
 # Trap the EXIT signal to call the cleanup function. This ensures cleanup
 # runs whether the script finishes successfully, fails, or is interrupted.
 trap cleanup EXIT
-
-# Explicitly sync to ensures the virtual environment is up to date.
-echo "Syncing virtual environment with uv sync..."
-if uv sync --package ap2-samples; then
-  echo "Virtual environment synced successfully."
-else
-  echo "Error: uv sync failed. Aborting deployment."
-  exit 1
-fi
 
 # Clear old logs.
 echo "Clearing the logs directory..."
